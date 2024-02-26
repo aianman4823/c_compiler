@@ -7,6 +7,8 @@
 
 #include "9cc.h"
 
+Node *code[100];
+
 // エラー箇所を報告する
 void error_at(char *loc, char *fmt, ...)
 {
@@ -41,12 +43,25 @@ bool consume(char *op)
   return true;
 }
 
+Token *consume_ident()
+{
+  if (token->kind == TK_IDENT)
+  {
+    return token;
+  }
+  return NULL;
+}
+
 void expect(char *op)
 {
   if (token->kind != TK_RESERVED || token->len != strlen(op) || memcmp(token->str, op, token->len))
   {
-    error("'%c'ではありません", op);
+    fprintf(stderr, "token->str: %s\n", token->str);
+    fprintf(stderr, "op: %s\n", op);
+    fprintf(stderr, "token->len: %d\n", token->len);
+    error("'%s'ではありません", op);
   }
+
   token = token->next;
 }
 
@@ -94,6 +109,19 @@ Token *tokenize(char *p)
       p++;
       continue;
     }
+    if ('a' <= *p && *p <= 'z')
+    {
+      cur = new_token(TK_IDENT, cur, p, 1);
+      p++;
+      continue;
+    }
+
+    if (startswith(p, ";"))
+    {
+      cur = new_token(TK_RESERVED, cur, p, 1);
+      p++;
+      continue;
+    }
 
     if (startswith(p, "!=") || startswith(p, "==") || startswith(p, "<=") || startswith(p, ">="))
     {
@@ -102,7 +130,7 @@ Token *tokenize(char *p)
       continue;
     }
 
-    if (*p == '+' || *p == '-' || *p == '*' || *p == '/' || *p == '(' || *p == ')' || *p == '>' || *p == '<')
+    if (*p == '+' || *p == '-' || *p == '*' || *p == '/' || *p == '(' || *p == ')' || *p == '>' || *p == '<' || *p == '=')
     {
       cur = new_token(TK_RESERVED, cur, p, 1);
       p++;
@@ -141,7 +169,10 @@ Node *new_node_num(int val)
   return node;
 }
 
+void program();
+Node *stmt();
 Node *expr();
+Node *assign();
 Node *equality();
 Node *relational();
 Node *add();
@@ -149,49 +180,38 @@ Node *mul();
 Node *unary();
 Node *primary();
 
-Node *primary()
+void program()
 {
-  if (consume("("))
+  int i = 0;
+  while (!at_eof())
   {
-    Node *node = expr();
-    expect(")");
-    return node;
+    code[i] = stmt();
+    i++;
   }
-
-  return new_node_num(expect_number());
+  code[i] = NULL;
 }
 
-Node *unary()
+Node *stmt()
 {
-  if (consume("+"))
-  {
-    return primary();
-  }
-  else if (consume("-"))
-  {
-    return new_node(ND_SUB, new_node_num(0), primary());
-  }
-  return primary();
-}
-
-Node *mul()
-{
-  Node *node = unary();
-
-  for (;;)
-  {
-    if (consume("*"))
-      node = new_node(ND_MUL, node, unary());
-    else if (consume("/"))
-      node = new_node(ND_DIV, node, unary());
-    else
-      return node;
-  }
+  Node *node = expr();
+  expect(";");
+  return node;
 }
 
 Node *expr()
 {
+  Node *node = assign();
+  return node;
+}
+
+Node *assign()
+{
   Node *node = equality();
+  if (consume("="))
+  {
+    node = new_node(ND_ASSIGN, node, assign());
+    return node;
+  }
   return node;
 }
 
@@ -261,4 +281,53 @@ Node *add()
       return node;
     }
   }
+}
+
+Node *mul()
+{
+  Node *node = unary();
+
+  for (;;)
+  {
+    if (consume("*"))
+      node = new_node(ND_MUL, node, unary());
+    else if (consume("/"))
+      node = new_node(ND_DIV, node, unary());
+    else
+      return node;
+  }
+}
+
+Node *unary()
+{
+  if (consume("+"))
+  {
+    return primary();
+  }
+  else if (consume("-"))
+  {
+    return new_node(ND_SUB, new_node_num(0), primary());
+  }
+  return primary();
+}
+
+Node *primary()
+{
+  Token *tok = consume_ident();
+  if (tok)
+  {
+    Node *node = calloc(1, sizeof(Node));
+    node->kind = ND_LVAR;
+    node->offset = (tok->str[0] - 'a' + 1) * 8;
+    token = tok->next;
+    return node;
+  }
+
+  if (consume("("))
+  {
+    Node *node = expr();
+    expect(")");
+    return node;
+  }
+  return new_node_num(expect_number());
 }
