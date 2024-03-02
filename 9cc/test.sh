@@ -36,5 +36,6 @@ assert 3 'a = 3;a;'
 assert 22 'b = 5 * 6 - 8;b;'
 assert 1 'a = 1;b = 1;a + b / 2;'
 assert 3 'foo = 1;bar = 2; foo + bar;'
+assert 3 'foo = 1;bar = 2; return foo + bar;'
 
 echo OK
