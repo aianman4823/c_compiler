@@ -31,5 +31,10 @@ assert 1 '10>9;'
 assert 1 '9<10;'
 assert 2 'a=1;b=1;a+b;'
 assert 4 'a=b=2;a+b;'
+assert 0 '-1-1 + 2;'
+assert 3 'a = 3;a;'
+assert 22 'b = 5 * 6 - 8;b;'
+assert 1 'a = 1;b = 1;a + b / 2;'
+assert 3 'foo = 1;bar = 2; foo + bar;'
 
 echo OK

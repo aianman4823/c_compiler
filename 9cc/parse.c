@@ -8,6 +8,19 @@
 #include "9cc.h"
 
 Node *code[100];
+LVar *locals;
+
+LVar *find_lvar(Token *tok)
+{
+  for (LVar *var = locals; var; var = var->next)
+  {
+    if (var->len == tok->len && !memcmp(tok->str, var->name, var->len))
+    {
+      return var;
+    }
+  }
+  return NULL;
+}
 
 // エラー箇所を報告する
 void error_at(char *loc, char *fmt, ...)
@@ -56,9 +69,6 @@ void expect(char *op)
 {
   if (token->kind != TK_RESERVED || token->len != strlen(op) || memcmp(token->str, op, token->len))
   {
-    fprintf(stderr, "token->str: %s\n", token->str);
-    fprintf(stderr, "op: %s\n", op);
-    fprintf(stderr, "token->len: %d\n", token->len);
     error("'%s'ではありません", op);
   }
 
@@ -109,10 +119,15 @@ Token *tokenize(char *p)
       p++;
       continue;
     }
-    if ('a' <= *p && *p <= 'z')
+
+    if (isalpha(*p) || *p == '_')
     {
-      cur = new_token(TK_IDENT, cur, p, 1);
-      p++;
+      char *start = p;
+      while (isalnum(*p) || *p == '_')
+      {
+        p++;
+      }
+      cur = new_token(TK_IDENT, cur, start, p - start);
       continue;
     }
 
@@ -286,7 +301,6 @@ Node *add()
 Node *mul()
 {
   Node *node = unary();
-
   for (;;)
   {
     if (consume("*"))
@@ -318,8 +332,30 @@ Node *primary()
   {
     Node *node = calloc(1, sizeof(Node));
     node->kind = ND_LVAR;
-    node->offset = (tok->str[0] - 'a' + 1) * 8;
-    token = tok->next;
+    token = token->next;
+
+    LVar *lvar = find_lvar(tok);
+    if (lvar)
+    {
+      node->offset = lvar->offset;
+    }
+    else
+    {
+      lvar = calloc(1, sizeof(LVar));
+      lvar->next = locals;
+      lvar->name = tok->str;
+      lvar->len = tok->len;
+      if (locals)
+      {
+        lvar->offset = locals->offset + 8;
+      }
+      else
+      {
+        lvar->offset = 8;
+      }
+      node->offset = lvar->offset;
+      locals = lvar;
+    }
     return node;
   }
 
@@ -329,5 +365,6 @@ Node *primary()
     expect(")");
     return node;
   }
+
   return new_node_num(expect_number());
 }
